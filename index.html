@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cloud Notes</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.3/dist/umd/supabase.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      padding: 20px;
+      max-width: 800px;
+      margin: auto;
+    }
+    h1 {
+      text-align: center;
+    }
+    textarea {
+      width: 100%;
+      height: 300px;
+      font-size: 16px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #0078D4;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .status {
+      text-align: center;
+      margin-top: 10px;
+      font-size: 14px;
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <h1>Cloud Synced Notes</h1>
+  <textarea id="noteArea" placeholder="Write your synced notes here..."></textarea><br>
+  <button onclick="saveNote()">Save</button>
+  <div class="status" id="statusMsg"></div>
+
+  <script>
+    const SUPABASE_URL = 'https://gdsfucamfarhbtymzvjb.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdkc2Z1Y2FtZmFyaGJ0eW16dmpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ5NDM3MjUsImV4cCI6MjA2MDUxOTcyNX0.PYYEP4E5OQDyg8JDfyg0U980UMGgQK_x4gqOM84UG2g';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const noteArea = document.getElementById('noteArea');
+    const statusMsg = document.getElementById('statusMsg');
+
+    async function loadNote() {
+      const { data, error } = await supabase
+        .from('notes')
+        .select('content')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data) {
+        noteArea.value = data.content;
+        statusMsg.textContent = 'Note loaded.';
+      } else {
+        statusMsg.textContent = 'No saved note found.';
+      }
+
+      if (error) console.error('Load Error:', error);
+    }
+
+    async function saveNote() {
+      const content = noteArea.value;
+      const { error } = await supabase
+        .from('notes')
+        .insert([{ content }]);
+
+      if (error) {
+        statusMsg.textContent = 'Error saving note.';
+        statusMsg.style.color = 'red';
+        console.error('Save Error:', error);
+      } else {
+        statusMsg.textContent = 'Note saved to cloud!';
+        statusMsg.style.color = 'green';
+      }
+    }
+
+    loadNote(); // Auto-load note on page open
+  </script>
+</body>
+</html>
