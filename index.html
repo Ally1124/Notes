@@ -2,51 +2,90 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cloud Notes</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.3/dist/umd/supabase.min.js"></script>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
+      margin: 0;
+      padding: 0;
+      background: #f4f6f9;
       font-family: 'Segoe UI', sans-serif;
-      background: #f0f2f5;
-      padding: 20px;
-      max-width: 800px;
-      margin: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .card {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      padding: 30px;
+      max-width: 700px;
+      width: 90%;
+      display: flex;
+      flex-direction: column;
     }
     h1 {
       text-align: center;
+      margin-bottom: 20px;
+      font-size: 28px;
+      color: #333;
     }
     textarea {
       width: 100%;
       height: 300px;
+      padding: 15px;
       font-size: 16px;
-      padding: 10px;
       border: 1px solid #ccc;
-      border-radius: 6px;
-      margin-bottom: 10px;
+      border-radius: 8px;
+      resize: vertical;
+      margin-bottom: 15px;
+      background: #fafafa;
     }
     button {
-      padding: 10px 20px;
-      font-size: 16px;
-      background: #0078D4;
+      background-color: #0078D4;
       color: white;
       border: none;
+      padding: 12px;
+      font-size: 16px;
       border-radius: 6px;
       cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background-color: #005fa3;
     }
     .status {
-      text-align: center;
       margin-top: 10px;
       font-size: 14px;
       color: green;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    .status.show {
+      opacity: 1;
+    }
+    .timestamp {
+      text-align: center;
+      font-size: 12px;
+      color: #888;
+      margin-top: 5px;
     }
   </style>
 </head>
 <body>
-  <h1>Cloud Synced Notes</h1>
-  <textarea id="noteArea" placeholder="Write your synced notes here..."></textarea><br>
-  <button onclick="saveNote()">Save</button>
-  <div class="status" id="statusMsg"></div>
+  <div class="card">
+    <h1>Cloud Synced Notes</h1>
+    <textarea id="noteArea" placeholder="Start typing..."></textarea>
+    <button onclick="saveNote()">Save Note</button>
+    <div class="status" id="statusMsg">Saved!</div>
+    <div class="timestamp" id="timeStamp"></div>
+  </div>
 
   <script>
     const SUPABASE_URL = 'https://gdsfucamfarhbtymzvjb.supabase.co';
@@ -55,42 +94,63 @@
 
     const noteArea = document.getElementById('noteArea');
     const statusMsg = document.getElementById('statusMsg');
+    const timeStamp = document.getElementById('timeStamp');
+
+    let noteId = null;
 
     async function loadNote() {
       const { data, error } = await supabase
         .from('notes')
-        .select('content')
+        .select()
         .order('updated_at', { ascending: false })
         .limit(1)
         .single();
 
       if (data) {
         noteArea.value = data.content;
-        statusMsg.textContent = 'Note loaded.';
+        noteId = data.id;
+        timeStamp.textContent = `Last updated: ${new Date(data.updated_at).toLocaleString()}`;
       } else {
-        statusMsg.textContent = 'No saved note found.';
+        timeStamp.textContent = 'No saved notes yet.';
       }
-
-      if (error) console.error('Load Error:', error);
+      if (error) console.error('Load error:', error);
     }
 
     async function saveNote() {
       const content = noteArea.value;
-      const { error } = await supabase
-        .from('notes')
-        .insert([{ content }]);
+      let response;
 
-      if (error) {
+      if (noteId) {
+        response = await supabase
+          .from('notes')
+          .update({ content })
+          .eq('id', noteId);
+      } else {
+        response = await supabase
+          .from('notes')
+          .insert([{ content }]);
+      }
+
+      if (response.error) {
         statusMsg.textContent = 'Error saving note.';
         statusMsg.style.color = 'red';
-        console.error('Save Error:', error);
+        console.error(response.error);
       } else {
-        statusMsg.textContent = 'Note saved to cloud!';
+        statusMsg.textContent = 'Note saved!';
         statusMsg.style.color = 'green';
+        statusMsg.classList.add('show');
+        setTimeout(() => statusMsg.classList.remove('show'), 2000);
+
+        if (response.data && response.data[0]) {
+          noteId = response.data[0].id;
+          timeStamp.textContent = `Last updated: ${new Date(response.data[0].updated_at).toLocaleString()}`;
+        } else {
+          timeStamp.textContent = `Last updated: ${new Date().toLocaleString()}`;
+        }
       }
     }
 
-    loadNote(); // Auto-load note on page open
+    loadNote();
   </script>
 </body>
 </html>
