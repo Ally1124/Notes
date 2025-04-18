@@ -2,89 +2,109 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cloud Notes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Notable Notes</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.3/dist/umd/supabase.min.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 0;
-      background: #f4f6f9;
       font-family: 'Segoe UI', sans-serif;
+      background: #f4f6f9;
       display: flex;
-      justify-content: center;
-      align-items: center;
       height: 100vh;
+      overflow: hidden;
     }
-    .card {
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-      padding: 30px;
-      max-width: 700px;
-      width: 90%;
+    .sidebar {
+      width: 280px;
+      background: #ffffff;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
     }
-    h1 {
-      text-align: center;
-      margin-bottom: 20px;
-      font-size: 28px;
-      color: #333;
+    .header {
+      padding: 20px;
+      font-weight: bold;
+      font-size: 20px;
+      border-bottom: 1px solid #eee;
     }
-    textarea {
-      width: 100%;
-      height: 300px;
-      padding: 15px;
-      font-size: 16px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      resize: vertical;
-      margin-bottom: 15px;
-      background: #fafafa;
+    .notes-list {
+      flex-grow: 1;
+      padding: 10px;
+      overflow-y: auto;
     }
-    button {
-      background-color: #0078D4;
-      color: white;
-      border: none;
+    .note-item {
       padding: 12px;
-      font-size: 16px;
+      margin-bottom: 8px;
+      background: #f9f9f9;
       border-radius: 6px;
       cursor: pointer;
-      transition: background 0.3s;
+      transition: background 0.2s;
     }
-    button:hover {
-      background-color: #005fa3;
+    .note-item:hover {
+      background: #eaeaea;
     }
-    .status {
-      margin-top: 10px;
+    .main {
+      flex-grow: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .note-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .note-header input {
+      font-size: 20px;
+      padding: 8px;
+      width: 100%;
+      margin-right: 10px;
+    }
+    .note-header button {
+      padding: 8px 14px;
       font-size: 14px;
-      color: green;
-      text-align: center;
-      opacity: 0;
-      transition: opacity 0.4s;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
     }
-    .status.show {
-      opacity: 1;
+    .delete-btn { background: #e74c3c; color: #fff; }
+    .save-btn { background: #2ecc71; color: #fff; }
+    .new-btn { background: #3498db; color: #fff; width: 100%; border: none; padding: 12px; margin-top: 10px; font-size: 15px; cursor: pointer; }
+    textarea {
+      flex-grow: 1;
+      font-size: 16px;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      resize: vertical;
     }
     .timestamp {
-      text-align: center;
       font-size: 12px;
       color: #888;
       margin-top: 5px;
+      text-align: right;
     }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Cloud Synced Notes</h1>
-    <textarea id="noteArea" placeholder="Start typing..."></textarea>
-    <button onclick="saveNote()">Save Note</button>
-    <div class="status" id="statusMsg">Saved!</div>
-    <div class="timestamp" id="timeStamp"></div>
+  <div class="sidebar">
+    <div class="header">Notable Notes</div>
+    <div class="notes-list" id="notesList"></div>
+    <button class="new-btn" onclick="createNote()">+ New Note</button>
+  </div>
+
+  <div class="main">
+    <div class="note-header">
+      <input type="text" id="noteTitle" placeholder="Note Title" />
+      <button class="save-btn" onclick="saveNote()">Save</button>
+      <button class="delete-btn" onclick="deleteNote()">Delete</button>
+    </div>
+    <textarea id="noteContent" placeholder="Write something..."></textarea>
+    <div class="timestamp" id="noteTimestamp"></div>
   </div>
 
   <script>
@@ -92,65 +112,67 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdkc2Z1Y2FtZmFyaGJ0eW16dmpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ5NDM3MjUsImV4cCI6MjA2MDUxOTcyNX0.PYYEP4E5OQDyg8JDfyg0U980UMGgQK_x4gqOM84UG2g';
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const noteArea = document.getElementById('noteArea');
-    const statusMsg = document.getElementById('statusMsg');
-    const timeStamp = document.getElementById('timeStamp');
+    let currentNoteId = null;
 
-    let noteId = null;
-
-    async function loadNote() {
+    async function loadNotes() {
       const { data, error } = await supabase
         .from('notes')
-        .select()
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .single();
+        .select('*')
+        .order('updated_at', { ascending: false });
 
-      if (data) {
-        noteArea.value = data.content;
-        noteId = data.id;
-        timeStamp.textContent = `Last updated: ${new Date(data.updated_at).toLocaleString()}`;
-      } else {
-        timeStamp.textContent = 'No saved notes yet.';
-      }
-      if (error) console.error('Load error:', error);
+      const notesList = document.getElementById('notesList');
+      notesList.innerHTML = '';
+
+      data.forEach(note => {
+        const div = document.createElement('div');
+        div.className = 'note-item';
+        div.textContent = note.title || 'Untitled Note';
+        div.onclick = () => loadNote(note);
+        notesList.appendChild(div);
+      });
+    }
+
+    function clearEditor() {
+      document.getElementById('noteTitle').value = '';
+      document.getElementById('noteContent').value = '';
+      document.getElementById('noteTimestamp').textContent = '';
+      currentNoteId = null;
+    }
+
+    async function loadNote(note) {
+      currentNoteId = note.id;
+      document.getElementById('noteTitle').value = note.title || '';
+      document.getElementById('noteContent').value = note.content || '';
+      document.getElementById('noteTimestamp').textContent = 'Last updated: ' + new Date(note.updated_at).toLocaleString();
+    }
+
+    async function createNote() {
+      clearEditor();
     }
 
     async function saveNote() {
-      const content = noteArea.value;
-      let response;
+      const title = document.getElementById('noteTitle').value;
+      const content = document.getElementById('noteContent').value;
 
-      if (noteId) {
-        response = await supabase
-          .from('notes')
-          .update({ content })
-          .eq('id', noteId);
+      if (currentNoteId) {
+        await supabase.from('notes').update({ title, content }).eq('id', currentNoteId);
       } else {
-        response = await supabase
-          .from('notes')
-          .insert([{ content }]);
+        const { data } = await supabase.from('notes').insert([{ title, content }]).select().single();
+        currentNoteId = data.id;
       }
 
-      if (response.error) {
-        statusMsg.textContent = 'Error saving note.';
-        statusMsg.style.color = 'red';
-        console.error(response.error);
-      } else {
-        statusMsg.textContent = 'Note saved!';
-        statusMsg.style.color = 'green';
-        statusMsg.classList.add('show');
-        setTimeout(() => statusMsg.classList.remove('show'), 2000);
+      loadNotes();
+    }
 
-        if (response.data && response.data[0]) {
-          noteId = response.data[0].id;
-          timeStamp.textContent = `Last updated: ${new Date(response.data[0].updated_at).toLocaleString()}`;
-        } else {
-          timeStamp.textContent = `Last updated: ${new Date().toLocaleString()}`;
-        }
+    async function deleteNote() {
+      if (currentNoteId && confirm('Delete this note?')) {
+        await supabase.from('notes').delete().eq('id', currentNoteId);
+        clearEditor();
+        loadNotes();
       }
     }
 
-    loadNote();
+    loadNotes();
   </script>
 </body>
 </html>
